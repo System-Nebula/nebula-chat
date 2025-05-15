@@ -1,15 +1,23 @@
 use anyhow::Result;
-use iroh::{Endpoint,SecretKey};
+use iroh::protocol::Router;
+use iroh::Endpoint;
+use iroh_gossip::net::Gossip;
 
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let secret_key = SecretKey::generate(rand::rngs::OsRng);
-    let endpoint = Endpoint::builder().secret_key(secret_key)
+    let endpoint = Endpoint::builder()
         .discovery_n0()
         .bind()
         .await?;
     print!("> node id: {}", endpoint.node_id());
-    Ok(())
 
+    let gossip = Gossip::builder().spawn(endpoint.clone()).await?;
+
+    let router = Router::builder(endpoint.clone())
+        .accept(iroh_gossip::ALPN, gossip.clone())
+        .spawn();
+    router.shutdown().await?;
+
+    Ok(())
 }
