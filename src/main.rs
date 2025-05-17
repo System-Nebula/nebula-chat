@@ -110,7 +110,7 @@ async fn subscribe_loop(mut receiver: GossipReceiver) -> Result<()> {
 
 fn input_loop(line_tx: tokio::sync::mpsc::Sender<String>) -> Result<()> {
     let mut buffer = String::new();
-    let mut stdin = std::io::stdin();
+    let stdin = std::io::stdin();
     loop {
         stdin.read_line(&mut buffer)?;
         line_tx.blocking_send(buffer.clone())?;
