@@ -2,11 +2,11 @@ use anyhow::Result;
 use clap::Parser;
 use core::fmt;
 use futures_lite::StreamExt;
-use iroh::{Endpoint, NodeAddr, NodeId};
 use iroh::protocol::Router;
-use iroh_gossip::net::{Event,Gossip,GossipEvent,GossipReceiver};
+use iroh::{Endpoint, NodeAddr, NodeId};
+use iroh_gossip::net::{Event, Gossip, GossipEvent, GossipReceiver};
 use iroh_gossip::proto::TopicId;
-use serde::{Deserialize,Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -15,7 +15,7 @@ struct Args {
     #[clap(short, long)]
     name: Option<String>,
 
-    #[clap(short,long,default_value = "0")]
+    #[clap(short, long, default_value = "0")]
     bind_port: u16,
     #[clap(subcommand)]
     command: Command,
@@ -24,12 +24,10 @@ struct Args {
 #[derive(Parser, Debug)]
 enum Command {
     Open,
-    Join {
-        ticket: String,
-    },
+    Join { ticket: String },
 }
 
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Ticket {
     topic: TopicId,
     nodes: Vec<NodeAddr>,
@@ -39,7 +37,7 @@ impl Ticket {
     fn from_bytes(bytes: &[u8]) -> Result<Self> {
         serde_json::from_slice(bytes).map_err(Into::into)
     }
-    pub fn to_bytes(&self) -> Vec<u8>{
+    pub fn to_bytes(&self) -> Vec<u8> {
         serde_json::to_vec(self).expect("serde_json::to_vec is infallible")
     }
 }
@@ -68,8 +66,8 @@ struct Message {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum MessageBody {
-    AboutMe {from: NodeId,name: String},
-    Message { from: NodeId, text: String},
+    AboutMe { from: NodeId, name: String },
+    Message { from: NodeId, text: String },
 }
 
 impl Message {
@@ -77,35 +75,35 @@ impl Message {
         serde_json::from_slice(bytes).map_err(Into::into)
     }
     pub fn new(body: MessageBody) -> Self {
-        Self { body , nonce: rand::random(), }
+        Self {
+            body,
+            nonce: rand::random(),
+        }
     }
     pub fn to_vec(&self) -> Vec<u8> {
         serde_json::to_vec(self).expect("serde_json::to_vec is infallible")
     }
 }
 
-async fn subscribe_loop(mut receiver: GossipReceiver) -> Result<()>{
+async fn subscribe_loop(mut receiver: GossipReceiver) -> Result<()> {
     let mut names = HashMap::new();
 
     while let Some(event) = receiver.try_next().await? {
-
         if let Event::Gossip(GossipEvent::Received(msg)) = event {
-
             match Message::from_bytes(&msg.content)?.body {
-
                 MessageBody::AboutMe { from, name } => {
-                    names.insert(from,name.clone());
-                    println!("> {} is now known as {}",from.fmt_short(), name);
+                    names.insert(from, name.clone());
+                    println!("> {} is now known as {}", from.fmt_short(), name);
                 }
 
                 MessageBody::Message { from, text } => {
                     let name = names
-                    .get(&from)
-                    .map_or_else(|| from.fmt_short(), String::to_string);
+                        .get(&from)
+                        .map_or_else(|| from.fmt_short(), String::to_string);
                     println!("{}: {}", name, text);
                 }
             }
-        } 
+        }
     }
     Ok(())
 }
@@ -119,7 +117,6 @@ fn input_loop(line_tx: tokio::sync::mpsc::Sender<String>) -> Result<()> {
         buffer.clear();
     }
 }
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
