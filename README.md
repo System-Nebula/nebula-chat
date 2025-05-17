@@ -30,7 +30,7 @@ Installing the binary in your computer using a flake:
 }
 # inside of your home-manager config or configuration.nix
 # specify the resulting package
-nix build .#packages.<system architecture>.default
+nebula-chat.packages.<system architecture>.default
 ```
 
 Building without using nix:
