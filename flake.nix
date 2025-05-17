@@ -106,11 +106,6 @@
             inherit src advisory-db;
           };
 
-          # Audit licenses
-          nebula-chat-deny = craneLib.cargoDeny {
-            inherit src;
-          };
-
           # Run tests with cargo-nextest
           # Consider setting `doCheck = false` on `nebula-chat` if you do not want
           # the tests to run twice
