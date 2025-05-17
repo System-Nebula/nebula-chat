@@ -1,0 +1,15 @@
+name: rust lint
+
+on: [pull_request]
+
+jobs:
+  rust_lint:
+    name: rust-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: qernal/github-actions-rust-clippy@v2.0.2
+        with:
+          args: "--verbose,--all-targets"
+          path_glob: "**/src"
+          rust_version: 1.86
