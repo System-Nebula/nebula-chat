@@ -1,123 +1,12 @@
 use anyhow::Result;
 use clap::Parser;
-use core::fmt;
-use futures_lite::StreamExt;
+use iroh::endpoint::Endpoint;
 use iroh::protocol::Router;
-use iroh::{Endpoint, NodeAddr, NodeId};
-use iroh_gossip::net::{Event, Gossip, GossipEvent, GossipReceiver};
+use iroh_gossip::net::Gossip;
 use iroh_gossip::proto::TopicId;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::str::FromStr;
-
-#[derive(Parser, Debug)]
-struct Args {
-    #[clap(short, long)]
-    name: Option<String>,
-
-    #[clap(short, long, default_value = "0")]
-    bind_port: u16,
-    #[clap(subcommand)]
-    command: Command,
-}
-
-#[derive(Parser, Debug)]
-enum Command {
-    Open,
-    Join { ticket: String },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Ticket {
-    topic: TopicId,
-    nodes: Vec<NodeAddr>,
-}
-
-impl Ticket {
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        serde_json::from_slice(bytes).map_err(Into::into)
-    }
-    pub fn to_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("serde_json::to_vec is infallible")
-    }
-}
-
-impl fmt::Display for Ticket {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut text = data_encoding::BASE32_NOPAD.encode(&self.to_bytes()[..]);
-        text.make_ascii_lowercase();
-        write!(f, "{}", text)
-    }
-}
-
-impl FromStr for Ticket {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = data_encoding::BASE32_NOPAD.decode(s.to_ascii_uppercase().as_bytes())?;
-        Self::from_bytes(&bytes)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Message {
-    body: MessageBody,
-    nonce: [u8; 16],
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-enum MessageBody {
-    AboutMe { from: NodeId, name: String },
-    Message { from: NodeId, text: String },
-}
-
-impl Message {
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        serde_json::from_slice(bytes).map_err(Into::into)
-    }
-    pub fn new(body: MessageBody) -> Self {
-        Self {
-            body,
-            nonce: rand::random(),
-        }
-    }
-    pub fn to_vec(&self) -> Vec<u8> {
-        serde_json::to_vec(self).expect("serde_json::to_vec is infallible")
-    }
-}
-
-async fn subscribe_loop(mut receiver: GossipReceiver) -> Result<()> {
-    let mut names = HashMap::new();
-
-    while let Some(event) = receiver.try_next().await? {
-        if let Event::Gossip(GossipEvent::Received(msg)) = event {
-            match Message::from_bytes(&msg.content)?.body {
-                MessageBody::AboutMe { from, name } => {
-                    names.insert(from, name.clone());
-                    println!("> {} is now known as {}", from.fmt_short(), name);
-                }
-
-                MessageBody::Message { from, text } => {
-                    let name = names
-                        .get(&from)
-                        .map_or_else(|| from.fmt_short(), String::to_string);
-                    println!("{}: {}", name, text);
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn input_loop(line_tx: tokio::sync::mpsc::Sender<String>) -> Result<()> {
-    let mut buffer = String::new();
-    let stdin = std::io::stdin();
-    loop {
-        stdin.read_line(&mut buffer)?;
-        line_tx.blocking_send(buffer.clone())?;
-        buffer.clear();
-    }
-}
-
+mod chat;
+use chat::chat::{input_loop, subscribe_loop, Args, Command, Message, MessageBody, Ticket};
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -130,7 +19,7 @@ async fn main() -> Result<()> {
             (topic, vec![])
         }
         Command::Join { ticket } => {
-            let Ticket { topic, nodes } = Ticket::from_str(ticket)?;
+            let Ticket { topic, nodes } = Ticket::from_str(&ticket)?;
             println!("> joining chat room for topic {topic}");
             (topic, nodes)
         }
